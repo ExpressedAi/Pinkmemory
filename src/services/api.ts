@@ -1,9 +1,9 @@
 // Model definitions
-export const AGENT_A_MODEL = "gpt-4-turbo-preview";
+export const AGENT_A_MODEL = "gpt-4.1-2025-04-14";
 export const AGENT_B_EMBED_MODEL = "text-embedding-3-small";
-export const AGENT_B_META_MODEL = "gpt-4-turbo-preview";
+export const AGENT_B_META_MODEL = "gpt-4.1-2025-04-14";
 export const AGENT_C_EMBED_MODEL = "text-embedding-3-large";
-export const AGENT_C_META_MODEL = "gpt-4-turbo-preview";
+export const AGENT_C_META_MODEL = "gpt-4.1-2025-04-14";
 
 // Helper function to sanitize API key
 function sanitizeApiKey(apiKey: string): string {
