@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { Brain } from 'lucide-react';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useMemory } from '@/contexts/MemoryContext';
-import { fetchEmbedding, fetchMeta, buildMetaVectorFromAI, cosine, normalize, fetchChatCompletion } from '@/services/api';
+import { fetchEmbedding, fetchMeta, buildMetaVectorFromAI, cosine, normalize, streamResponse } from '@/services/api';
 import { stm_getMemoryStore, ltm_getMemoryStore, stm_boostMemoryChunk, ltm_boostMemoryChunk, stm_decayMemoryStore, ltm_decayMemoryStore, stm_addChunk } from '@/services/memory';
 
 interface ChatMessage {
@@ -28,10 +28,14 @@ export default function ChatPage() {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [streamingContent, setStreamingContent] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
   const [queryInfo, setQueryInfo] = useState<string | null>(null);
   const [stmContext, setStmContext] = useState<{chunks: ContextChunk[], meta: any} | null>(null);
   const [ltmContext, setLtmContext] = useState<{chunks: ContextChunk[], meta: any} | null>(null);
   const [agentAStatus, setAgentAStatus] = useState<string | null>(null);
+  const [agentBStatus, setAgentBStatus] = useState<string | null>(null);
+  const [agentCStatus, setAgentCStatus] = useState<string | null>(null);
   
   const chatLogRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -97,31 +101,42 @@ Generate a reflection that:
 
 Write your reflection:`;
 
-      const reflection = await fetchChatCompletion(
+      let reflection = '';
+      await streamResponse(
         settings.apiKeyA,
         [{ role: "user", content: reflectionPrompt }],
-        settings.modelA
+        settings.modelA,
+        () => {
+          // onStart - not needed for autonomous reflection
+        },
+        (chunk) => {
+          reflection += chunk;
+        },
+        async () => {
+          // onComplete - save reflection to STM
+          if (reflection && settings.apiKeyB) {
+            const embedding = await fetchEmbedding(settings.apiKeyB, reflection, settings.modelBEmbed);
+            const meta = await fetchMeta(settings.apiKeyB, reflection, settings.modelBMeta);
+            const metaVector = buildMetaVectorFromAI(meta);
+            
+            await stm_addChunk({
+              text: reflection,
+              embedding,
+              metaVector,
+              timestamp: Date.now(),
+              score: 2.0, // Give reflections a higher initial score
+              agentId: "agent-autonomous-reflection",
+              meta,
+              source: "Autonomous Reflection"
+            });
+            
+            console.log("Saved autonomous reflection to STM");
+          }
+        },
+        (error) => {
+          console.error("Error during autonomous reflection:", error);
+        }
       );
-      
-      // Save reflection to STM
-      if (reflection && settings.apiKeyB) {
-        const embedding = await fetchEmbedding(settings.apiKeyB, reflection, settings.modelBEmbed);
-        const meta = await fetchMeta(settings.apiKeyB, reflection, settings.modelBMeta);
-        const metaVector = buildMetaVectorFromAI(meta);
-        
-        await stm_addChunk({
-          text: reflection,
-          embedding,
-          metaVector,
-          timestamp: Date.now(),
-          score: 2.0, // Give reflections a higher initial score
-          agentId: "agent-autonomous-reflection",
-          meta,
-          source: "Autonomous Reflection"
-        });
-        
-        console.log("Saved autonomous reflection to STM");
-      }
       
       // Update UI after reflection
       setAgentAStatus('Reflection completed');
@@ -156,7 +171,7 @@ Write your reflection:`;
     if (chatLogRef.current) {
       chatLogRef.current.scrollTop = chatLogRef.current.scrollHeight;
     }
-  }, [chatHistory]);
+  }, [chatHistory, streamingContent]);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,8 +187,13 @@ Write your reflection:`;
     setChatHistory(prev => [...prev, { role: 'user', content: userMessage }]);
     
     setIsLoading(true);
+    setStreamingContent('');
     setQueryInfo(`Processing query: "${userMessage}"`);
+    setStmContext(null);
+    setLtmContext(null);
     setAgentAStatus('Waiting for context retrieval...');
+    setAgentBStatus(null);
+    setAgentCStatus(null);
     
     try {
       await stm_decayMemoryStore();
@@ -185,11 +205,16 @@ Write your reflection:`;
       // Agent B: Retrieve STM context first
       if (settings.apiKeyB) {
         try {
-          setQueryInfo('Agent B retrieving STM context...');
+          setAgentBStatus('🧠 Agent B: Analyzing query semantics...');
+          setQueryInfo('Agent B processing query for STM retrieval...');
+          
           const embedding = await fetchEmbedding(settings.apiKeyB, userMessage, settings.modelBEmbed);
+          setAgentBStatus('🧠 Agent B: Generating meta-cognitive profile...');
+          
           const meta = await fetchMeta(settings.apiKeyB, userMessage, settings.modelBMeta);
           const metaVector = buildMetaVectorFromAI(meta);
           
+          setAgentBStatus('🧠 Agent B: Searching STM for relevant memories...');
           const store = await stm_getMemoryStore();
           
           if (store.length > 0) {
@@ -214,23 +239,31 @@ Write your reflection:`;
             });
             
             stmContextData = { chunks: results, meta };
+            setAgentBStatus(`✅ Agent B: Found ${results.length} relevant STM memories`);
           } else {
             stmContextData = { chunks: [], meta };
+            setAgentBStatus('⚠️ Agent B: No STM memories found');
           }
         } catch (error) {
           console.error("Failed to retrieve STM context:", error);
           stmContextData = { chunks: [], meta: null };
+          setAgentBStatus('❌ Agent B: STM retrieval failed');
         }
       }
       
       // Agent C: Retrieve LTM context second
       if (settings.apiKeyC) {
         try {
-          setQueryInfo('Agent C retrieving LTM context...');
+          setAgentCStatus('🧠 Agent C: Analyzing query semantics...');
+          setQueryInfo('Agent C processing query for LTM retrieval...');
+          
           const embedding = await fetchEmbedding(settings.apiKeyC, userMessage, settings.modelCEmbed);
+          setAgentCStatus('🧠 Agent C: Generating meta-cognitive profile...');
+          
           const meta = await fetchMeta(settings.apiKeyC, userMessage, settings.modelCMeta);
           const metaVector = buildMetaVectorFromAI(meta);
           
+          setAgentCStatus('🧠 Agent C: Searching LTM for relevant memories...');
           const store = await ltm_getMemoryStore();
           
           if (store.length > 0) {
@@ -255,12 +288,15 @@ Write your reflection:`;
             });
             
             ltmContextData = { chunks: results, meta };
+            setAgentCStatus(`✅ Agent C: Found ${results.length} relevant LTM memories`);
           } else {
             ltmContextData = { chunks: [], meta };
+            setAgentCStatus('⚠️ Agent C: No LTM memories found');
           }
         } catch (error) {
           console.error("Failed to retrieve LTM context:", error);
           ltmContextData = { chunks: [], meta: null };
+          setAgentCStatus('❌ Agent C: LTM retrieval failed');
         }
       }
       
@@ -270,8 +306,8 @@ Write your reflection:`;
       
       // Agent A: Generate response using context from B and C
       if (settings.apiKeyA) {
-        setQueryInfo('Agent A generating response with retrieved context...');
-        setAgentAStatus('Agent A processing with STM and LTM context...');
+        setQueryInfo('Agent A synthesizing response from all contexts...');
+        setAgentAStatus('🤔 Agent A: Synthesizing STM and LTM context...');
         
         const stmContextChunks = stmContextData?.chunks || [];
         const ltmContextChunks = ltmContextData?.chunks || [];
@@ -314,23 +350,42 @@ Based only on the provided memories (STM & LTM), conversation history, and the u
         
         abortControllerRef.current = new AbortController();
         
-        const response = await fetchChatCompletion(
+        await streamResponse(
           settings.apiKeyA,
           [{ role: "user", content: agentPrompt }],
           settings.modelA,
+          () => {
+            // onStart
+            setIsStreaming(true);
+            setStreamingContent('');
+            setAgentAStatus('💭 Agent A: Generating response...');
+          },
+          (chunk) => {
+            // onChunk
+            setStreamingContent(prev => prev + chunk);
+          },
+          () => {
+            // onComplete
+            setAgentAStatus('✅ Agent A: Response completed');
+            setIsStreaming(false);
+            setChatHistory(prev => [...prev, { 
+              role: 'assistant', 
+              content: streamingContent 
+            }]);
+            setQueryInfo(null);
+          },
+          (error) => {
+            // onError
+            console.error("Error generating response:", error);
+            setAgentAStatus(`❌ Agent A: Error - ${error.message}`);
+            setIsStreaming(false);
+          },
           abortControllerRef.current.signal
         );
-        
-        setAgentAStatus('Response completed');
-        setQueryInfo(null);
-        setChatHistory(prev => [...prev, { 
-          role: 'assistant', 
-          content: response 
-        }]);
       }
     } catch (error: any) {
       console.error("Error in chat process:", error);
-      setAgentAStatus(`Error: ${error.message}`);
+      setAgentAStatus(`❌ Error: ${error.message}`);
       setQueryInfo(`Error: ${error.message}`);
     } finally {
       setIsLoading(false);
@@ -360,7 +415,34 @@ Based only on the provided memories (STM & LTM), conversation history, and the u
             </div>
           ))}
           
+          {isStreaming && streamingContent && (
+            <div className="mb-4">
+              <div className="font-semibold text-gray-800">Agent A:</div>
+              <div className="prose-sm max-w-none mt-2">
+                <ReactMarkdown>{streamingContent}</ReactMarkdown>
+                <span className="inline-block w-2 h-5 border-r-2 border-purple-600 animate-pulse ml-1"></span>
+              </div>
+            </div>
+          )}
         </div>
+        
+        {/* Status indicators */}
+        {(queryInfo || agentBStatus || agentCStatus || agentAStatus) && (
+          <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            {queryInfo && (
+              <div className="text-sm text-blue-800 font-medium mb-1">{queryInfo}</div>
+            )}
+            {agentBStatus && (
+              <div className="text-sm text-blue-700 mb-1">{agentBStatus}</div>
+            )}
+            {agentCStatus && (
+              <div className="text-sm text-indigo-700 mb-1">{agentCStatus}</div>
+            )}
+            {agentAStatus && (
+              <div className="text-sm text-purple-700">{agentAStatus}</div>
+            )}
+          </div>
+        )}
         
         <form onSubmit={handleSubmit} className="mt-auto">
           <div className="flex gap-3">
