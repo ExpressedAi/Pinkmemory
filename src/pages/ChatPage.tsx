@@ -102,47 +102,22 @@ Write your reflection:`;
         },
         async () => {
           // onComplete - save reflection to STM
-          if (reflection && settings.apiKeyB) {
-            const embedding = await fetchEmbedding(settings.apiKeyB, reflection, settings.modelBEmbed);
-            const meta = await fetchMeta(settings.apiKeyB, reflection, settings.modelBMeta);
+          if (reflection && settings.apiKeyC) {
+            // Only save reflections to LTM using Agent C's models
+            const embedding = await fetchEmbedding(settings.apiKeyC, reflection, settings.modelCEmbed);
+            const meta = await fetchMeta(settings.apiKeyC, reflection, settings.modelCMeta);
             const metaVector = buildMetaVectorFromAI(meta);
             
-            // Save to STM
-            await stm_addChunk({
+            await ltm_addChunk({
               text: reflection,
               embedding,
               metaVector,
               timestamp: Date.now(),
-              score: 2.0, // Give reflections a higher initial score
+              score: 2.5, // Give reflections a higher score for persistence
               agentId: "agent-autonomous-reflection",
               meta,
               source: "Autonomous Reflection"
             });
-            
-            // Also save to LTM for long-term preservation
-            if (settings.apiKeyC) {
-              try {
-                // Use Agent C's models for LTM storage
-                const ltmEmbedding = await fetchEmbedding(settings.apiKeyC, reflection, settings.modelCEmbed);
-                const ltmMeta = await fetchMeta(settings.apiKeyC, reflection, settings.modelCMeta);
-                const ltmMetaVector = buildMetaVectorFromAI(ltmMeta);
-                
-                await ltm_addChunk({
-                  text: reflection,
-                  embedding: ltmEmbedding,
-                  metaVector: ltmMetaVector,
-                  timestamp: Date.now(),
-                  score: 2.5, // Give LTM reflections an even higher score for persistence
-                  agentId: "agent-autonomous-reflection-ltm",
-                  meta: ltmMeta,
-                  source: "Autonomous Reflection (LTM)"
-                });
-                
-                console.log("Saved autonomous reflection to both STM and LTM");
-              } catch (ltmError) {
-                console.warn("Failed to save reflection to LTM, but STM save succeeded:", ltmError);
-              }
-            }
             
             // Add reflection to chat history
             addChatMessage({
@@ -151,7 +126,7 @@ Write your reflection:`;
               timestamp: Date.now()
             });
           }
-        },
+            console.log("Saved autonomous reflection to LTM only");
         (error) => {
           console.error("Error during autonomous reflection:", error);
         }
