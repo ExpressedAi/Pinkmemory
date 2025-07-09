@@ -13,6 +13,7 @@ const SettingsPage: React.FC = () => {
   const [globalPrompt, setGlobalPrompt] = useState(settings.globalPrompt);
   const [autonomyEnabled, setAutonomyEnabled] = useState(settings.autonomyEnabled);
   const [autonomyInterval, setAutonomyInterval] = useState(settings.autonomyInterval);
+  const [autonomyPrompt, setAutonomyPrompt] = useState(settings.autonomyPrompt);
   const [saveMessage, setSaveMessage] = useState<{text: string, type: 'success' | 'error'} | null>(null);
   
   // Load settings on mount
@@ -21,13 +22,15 @@ const SettingsPage: React.FC = () => {
     // Don't set api keys for security reasons
     setAutonomyEnabled(settings.autonomyEnabled);
     setAutonomyInterval(settings.autonomyInterval);
+    setAutonomyPrompt(settings.autonomyPrompt);
   }, [settings]);
   
   const handleSaveSettings = () => {
     const newSettings: Partial<typeof settings> = {
       globalPrompt,
       autonomyEnabled,
-      autonomyInterval
+      autonomyInterval,
+      autonomyPrompt
     };
     
     if (apiKeyA) newSettings.apiKeyA = apiKeyA;
@@ -74,7 +77,7 @@ const SettingsPage: React.FC = () => {
         <div>
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5">
               <label className="block text-blue-700 font-medium mb-2" htmlFor="globalPrompt">
-                Global System Prompt (Prepended to Agent A's Instructions)
+                Global System Prompt (Agent A - Chat Responses)
               </label>
               <textarea
                 id="globalPrompt"
@@ -83,6 +86,23 @@ const SettingsPage: React.FC = () => {
                 placeholder="Optional: Define core instructions or personality for Agent A..."
                 className="w-full p-3 border border-gray-300 rounded-lg min-h-[150px] focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+            
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5">
+              <label className="block text-purple-700 font-medium mb-2" htmlFor="autonomyPrompt">
+                Autonomous Reflection Prompt (Agent A - Autonomous Mode)
+              </label>
+              <textarea
+                id="autonomyPrompt"
+                value={autonomyPrompt}
+                onChange={(e) => setAutonomyPrompt(e.target.value)}
+                placeholder="Instructions for how the agent should reflect on memories..."
+                className="w-full p-3 border border-gray-300 rounded-lg min-h-[150px] focus:ring-2 focus:ring-purple-500"
+              />
+              <p className="text-purple-600 text-sm mt-2">
+                This prompt guides how Agent A reflects on memories during autonomous mode. 
+                The memories will be inserted after this prompt.
+              </p>
             </div>
             
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5">

@@ -10,6 +10,7 @@ export interface Settings {
   globalPrompt: string;
   autonomyEnabled: boolean;
   autonomyInterval: number; // in seconds
+  autonomyPrompt: string;
   modelA: string;
   modelBEmbed: string;
   modelBMeta: string;
@@ -36,6 +37,7 @@ const defaultSettings: Settings = {
   globalPrompt: "",
   autonomyEnabled: false,
   autonomyInterval: 30, // 30 seconds default
+  autonomyPrompt: "You are an introspective AI agent. Review these memories and generate a thoughtful reflection or insight that synthesizes them in a new way. Focus on finding patterns, drawing conclusions, or generating novel perspectives.\n\nGenerate a reflection that:\n1. Synthesizes these memories in an interesting way\n2. Draws novel connections or insights\n3. Is written in a clear, natural style\n4. Could be valuable for future context",
   modelA: AGENT_A_MODEL,
   modelBEmbed: AGENT_B_EMBED_MODEL,
   modelBMeta: AGENT_B_META_MODEL,

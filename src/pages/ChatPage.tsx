@@ -94,6 +94,12 @@ Generate a reflection that:
 4. Could be valuable for future context
 
 Write your reflection:`;
+      const reflectionPrompt = `${settings.autonomyPrompt}
+
+Memories to reflect on:
+${memoriesBlock}
+
+Write your reflection:`;
 
       let reflection = '';
       await streamResponse(
