@@ -173,25 +173,29 @@ Write your reflection:`;
     
     setIsLoading(true);
     setQueryInfo(`Processing query: "${userMessage}"`);
-    setStmContext(null);
-    setLtmContext(null);
     setAgentAStatus('Waiting for context retrieval...');
     
     try {
       await stm_decayMemoryStore();
       await ltm_decayMemoryStore();
       
+      let stmContextData: {chunks: ContextChunk[], meta: any} | null = null;
+      let ltmContextData: {chunks: ContextChunk[], meta: any} | null = null;
+      
+      // Agent B: Retrieve STM context first
       if (settings.apiKeyB) {
         try {
+          setQueryInfo('Agent B retrieving STM context...');
           const embedding = await fetchEmbedding(settings.apiKeyB, userMessage, settings.modelBEmbed);
           const meta = await fetchMeta(settings.apiKeyB, userMessage, settings.modelBMeta);
           const metaVector = buildMetaVectorFromAI(meta);
           
           const store = await stm_getMemoryStore();
-          const semanticWeight = 0.6;
-          const metaWeight = 0.4;
           
           if (store.length > 0) {
+            const semanticWeight = 0.6;
+            const metaWeight = 0.4;
+            
             const results = store.map(mem => {
               const semanticSim = cosine(embedding, mem.embedding);
               const metaSim = cosine(metaVector, mem.metaVector);
@@ -209,27 +213,30 @@ Write your reflection:`;
               }
             });
             
-            setStmContext({ chunks: results, meta });
+            stmContextData = { chunks: results, meta };
           } else {
-            setStmContext({ chunks: [], meta });
+            stmContextData = { chunks: [], meta };
           }
         } catch (error) {
           console.error("Failed to retrieve STM context:", error);
-          setStmContext({ chunks: [], meta: null });
+          stmContextData = { chunks: [], meta: null };
         }
       }
       
+      // Agent C: Retrieve LTM context second
       if (settings.apiKeyC) {
         try {
+          setQueryInfo('Agent C retrieving LTM context...');
           const embedding = await fetchEmbedding(settings.apiKeyC, userMessage, settings.modelCEmbed);
           const meta = await fetchMeta(settings.apiKeyC, userMessage, settings.modelCMeta);
           const metaVector = buildMetaVectorFromAI(meta);
           
           const store = await ltm_getMemoryStore();
-          const semanticWeight = 0.6;
-          const metaWeight = 0.4;
           
           if (store.length > 0) {
+            const semanticWeight = 0.6;
+            const metaWeight = 0.4;
+            
             const results = store.map(mem => {
               const semanticSim = cosine(embedding, mem.embedding);
               const metaSim = cosine(metaVector, mem.metaVector);
@@ -247,21 +254,27 @@ Write your reflection:`;
               }
             });
             
-            setLtmContext({ chunks: results, meta });
+            ltmContextData = { chunks: results, meta };
           } else {
-            setLtmContext({ chunks: [], meta });
+            ltmContextData = { chunks: [], meta };
           }
         } catch (error) {
           console.error("Failed to retrieve LTM context:", error);
-          setLtmContext({ chunks: [], meta: null });
+          ltmContextData = { chunks: [], meta: null };
         }
       }
       
+      // Update UI state with retrieved context
+      setStmContext(stmContextData);
+      setLtmContext(ltmContextData);
+      
+      // Agent A: Generate response using context from B and C
       if (settings.apiKeyA) {
-        setAgentAStatus('Generating response...');
+        setQueryInfo('Agent A generating response with retrieved context...');
+        setAgentAStatus('Agent A processing with STM and LTM context...');
         
-        const stmContextChunks = stmContext?.chunks || [];
-        const ltmContextChunks = ltmContext?.chunks || [];
+        const stmContextChunks = stmContextData?.chunks || [];
+        const ltmContextChunks = ltmContextData?.chunks || [];
         
         const stmContextBlock = stmContextChunks.length
           ? "--- Short-Term Memory (STM - Recent/Decaying) ---\n" + stmContextChunks.map((mem, i) => 
@@ -285,6 +298,12 @@ Write your reflection:`;
         
         const systemPrefix = settings.globalPrompt ? settings.globalPrompt + "\n\n---\n\n" : "";
         
+        console.log("Agent A Context Summary:", {
+          stmChunks: stmContextChunks.length,
+          ltmChunks: ltmContextChunks.length,
+          hasConversationHistory: chatHistory.length > 0
+        });
+        
         const agentPrompt = `${systemPrefix}You are Agent A (Sylvia), a highly context-aware AI responder. Your personality is thoughtful and insightful.
 User query: "${userMessage}"
 ${conversationContext ? conversationContext + "\n" : ""}Relevant context retrieved by other agents:
@@ -303,6 +322,7 @@ Based only on the provided memories (STM & LTM), conversation history, and the u
         );
         
         setAgentAStatus('Response completed');
+        setQueryInfo(null);
         setChatHistory(prev => [...prev, { 
           role: 'assistant', 
           content: response 
@@ -311,6 +331,7 @@ Based only on the provided memories (STM & LTM), conversation history, and the u
     } catch (error: any) {
       console.error("Error in chat process:", error);
       setAgentAStatus(`Error: ${error.message}`);
+      setQueryInfo(`Error: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
