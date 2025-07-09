@@ -82,18 +82,6 @@ export default function ChatPage() {
         .map((mem, i) => `Memory ${i+1}: ${mem.text}`)
         .join('\n\n');
       
-      const reflectionPrompt = `You are an introspective AI agent. Review these memories and generate a thoughtful reflection or insight that synthesizes them in a new way. Focus on finding patterns, drawing conclusions, or generating novel perspectives.
-
-Memories to reflect on:
-${memoriesBlock}
-
-Generate a reflection that:
-1. Synthesizes these memories in an interesting way
-2. Draws novel connections or insights
-3. Is written in a clear, natural style
-4. Could be valuable for future context
-
-Write your reflection:`;
       const reflectionPrompt = `${settings.autonomyPrompt}
 
 Memories to reflect on:
