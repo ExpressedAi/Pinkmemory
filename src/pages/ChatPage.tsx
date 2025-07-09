@@ -127,6 +127,7 @@ Write your reflection:`;
             });
           }
             console.log("Saved autonomous reflection to LTM only");
+        },
         (error) => {
           console.error("Error during autonomous reflection:", error);
         }
