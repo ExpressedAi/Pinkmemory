@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-d
 import { Toaster } from '@/components/ui/Toaster';
 import { SettingsProvider } from '@/contexts/SettingsContext';
 import { MemoryProvider } from '@/contexts/MemoryContext';
+import { ChatHistoryProvider } from '@/contexts/ChatHistoryContext';
 import Layout from '@/components/Layout';
 import ChatPage from '@/pages/ChatPage';
 import UploaderLTMPage from '@/pages/UploaderLTMPage';
@@ -16,18 +17,20 @@ function App() {
     <Router>
       <SettingsProvider>
         <MemoryProvider>
-          <Layout>
-            <Routes>
-              <Route path="/chat" element={<ChatPage />} />
-              <Route path="/uploader-ltm" element={<UploaderLTMPage />} />
-              <Route path="/uploader-stm" element={<UploaderSTMPage />} />
-              <Route path="/scoreboard" element={<ScoreboardPage />} />
-              <Route path="/test" element={<TestPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="*" element={<Navigate to="/chat" replace />} />
-            </Routes>
-          </Layout>
-          <Toaster />
+          <ChatHistoryProvider>
+            <Layout>
+              <Routes>
+                <Route path="/chat" element={<ChatPage />} />
+                <Route path="/uploader-ltm" element={<UploaderLTMPage />} />
+                <Route path="/uploader-stm" element={<UploaderSTMPage />} />
+                <Route path="/scoreboard" element={<ScoreboardPage />} />
+                <Route path="/test" element={<TestPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="*" element={<Navigate to="/chat" replace />} />
+              </Routes>
+            </Layout>
+            <Toaster />
+          </ChatHistoryProvider>
         </MemoryProvider>
       </SettingsProvider>
     </Router>

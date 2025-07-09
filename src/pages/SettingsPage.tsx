@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useSettings } from '@/contexts/SettingsContext';
+import { useChatHistory } from '@/contexts/ChatHistoryContext';
 import { Save, Trash2 } from 'lucide-react';
 
 const SettingsPage: React.FC = () => {
-  const { settings, updateSettings, saveSettings, clearChatHistory, chatHistorySize } = useSettings();
+  const { settings, updateSettings, saveSettings } = useSettings();
+  const { clearChatHistory, chatHistorySize } = useChatHistory();
   
   const [apiKeyA, setApiKeyA] = useState('');
   const [apiKeyB, setApiKeyB] = useState('');

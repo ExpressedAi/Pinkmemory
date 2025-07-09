@@ -3,13 +3,9 @@ import ReactMarkdown from 'react-markdown';
 import { Brain } from 'lucide-react';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useMemory } from '@/contexts/MemoryContext';
+import { useChatHistory } from '@/contexts/ChatHistoryContext';
 import { fetchEmbedding, fetchMeta, buildMetaVectorFromAI, cosine, normalize, streamResponse } from '@/services/api';
 import { stm_getMemoryStore, ltm_getMemoryStore, stm_boostMemoryChunk, ltm_boostMemoryChunk, stm_decayMemoryStore, ltm_decayMemoryStore, stm_addChunk } from '@/services/memory';
-
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
 
 interface ContextChunk {
   id?: number;
@@ -20,12 +16,10 @@ interface ContextChunk {
   score?: number;
 }
 
-const CHAT_HISTORY_KEY = "chatHistory";
-
 export default function ChatPage() {
   const { settings, updateSettings, saveSettings } = useSettings();
   const { isInitialized } = useMemory();
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const { chatHistory, addChatMessage } = useChatHistory();
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
@@ -149,25 +143,6 @@ Write your reflection:`;
   };
   
   useEffect(() => {
-    try {
-      const savedHistory = localStorage.getItem(CHAT_HISTORY_KEY);
-      if (savedHistory) {
-        setChatHistory(JSON.parse(savedHistory));
-      }
-    } catch (error) {
-      console.error("Failed to load chat history:", error);
-    }
-  }, []);
-  
-  useEffect(() => {
-    try {
-      localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(chatHistory));
-    } catch (error) {
-      console.error("Failed to save chat history:", error);
-    }
-  }, [chatHistory]);
-  
-  useEffect(() => {
     if (chatLogRef.current) {
       chatLogRef.current.scrollTop = chatLogRef.current.scrollHeight;
     }
@@ -184,7 +159,7 @@ Write your reflection:`;
     const userMessage = message.trim();
     setMessage('');
     
-    setChatHistory(prev => [...prev, { role: 'user', content: userMessage }]);
+    addChatMessage({ role: 'user', content: userMessage });
     
     setIsLoading(true);
     setStreamingContent('');
@@ -373,10 +348,10 @@ Based only on the provided memories (STM & LTM), conversation history, and the u
             setAgentAStatus('✅ Agent A: Response completed');
             
             // Add accumulated content to chat history
-            setChatHistory(prev => [...prev, { 
+            addChatMessage({ 
               role: 'assistant', 
               content: accumulatedContent 
-            }]);
+            });
             
             // Clear streaming state after a brief delay to ensure smooth transition
             setTimeout(() => {

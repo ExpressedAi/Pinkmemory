@@ -21,8 +21,6 @@ interface SettingsContextType {
   settings: Settings;
   updateSettings: (newSettings: Partial<Settings>) => void;
   saveSettings: () => void;
-  clearChatHistory: () => void;
-  chatHistorySize: number;
 }
 
 interface SettingsProviderProps {
@@ -30,7 +28,6 @@ interface SettingsProviderProps {
 }
 
 const SETTINGS_KEY = "metaVectorSettings";
-const CHAT_HISTORY_KEY = "chatHistory";
 
 const defaultSettings: Settings = {
   apiKeyA: "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",
@@ -50,15 +47,12 @@ export const SettingsContext = createContext<SettingsContextType>({
   settings: defaultSettings,
   updateSettings: () => {},
   saveSettings: () => {},
-  clearChatHistory: () => {},
-  chatHistorySize: 0
 });
 
 export const useSettings = () => useContext(SettingsContext);
 
 export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) => {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
-  const [chatHistorySize, setChatHistorySize] = useState(0);
   const { toast } = useToast();
 
   // Load settings on mount
@@ -75,7 +69,6 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
         // If no settings found, save defaults
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(defaultSettings));
       }
-      updateChatHistorySize();
     } catch (e) {
       console.error("Failed to load settings:", e);
       toast({
@@ -119,42 +112,12 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
     }
   };
 
-  const clearChatHistory = () => {
-    localStorage.removeItem(CHAT_HISTORY_KEY);
-    updateChatHistorySize();
-    toast({
-      title: "Chat history cleared",
-      variant: "success"
-    });
-  };
-
-  const updateChatHistorySize = () => {
-    try {
-      const history = localStorage.getItem(CHAT_HISTORY_KEY);
-      if (history) {
-        const parsed = JSON.parse(history);
-        // Very rough token estimation (3.5 tokens per word)
-        const totalText = parsed.reduce((acc: string, msg: any) => acc + msg.content, "");
-        const wordCount = totalText.split(/\s+/).length;
-        const tokenEstimate = Math.ceil(wordCount * 3.5);
-        setChatHistorySize(tokenEstimate);
-      } else {
-        setChatHistorySize(0);
-      }
-    } catch (e) {
-      console.error("Error estimating chat history size", e);
-      setChatHistorySize(0);
-    }
-  };
-
   return (
     <SettingsContext.Provider 
       value={{ 
         settings, 
         updateSettings, 
-        saveSettings, 
-        clearChatHistory,
-        chatHistorySize
+        saveSettings
       }}
     >
       {children}
