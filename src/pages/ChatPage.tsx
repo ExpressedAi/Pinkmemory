@@ -443,7 +443,7 @@ Based only on the provided memories (STM & LTM), conversation history, and the u
                   ? 'bg-pastel-pink/30 border-l-4 border-pastel-pink pl-4 py-2 rounded-r-lg'
                   : message.role === 'assistant'
                   ? 'bg-pastel-blue/30 border-l-4 border-pastel-blue pl-4 py-2 rounded-r-lg'
-                message.role === 'reflection' 
+                  : message.role === 'reflection' 
                   ? 'bg-pastel-purple/30 border-l-4 border-pastel-purple pl-4 py-2 rounded-r-lg' 
                   : ''
               }`}>
