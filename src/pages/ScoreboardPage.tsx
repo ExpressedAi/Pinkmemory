@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useMemory } from '@/contexts/MemoryContext';
-import { AlertCircle, BarChart2, Database, HardDrive } from 'lucide-react';
+import { AlertCircle, BarChart2, Database, HardDrive, Download, Upload, Shield, Info } from 'lucide-react';
 import { stm_getMemoryStore, ltm_getMemoryStore, stm_decayMemoryStore, ltm_decayMemoryStore } from '@/services/memory';
+import { checkDatabaseHealth, exportAllData, importAllData, requestPersistentStorage, isStoragePersistent } from '@/services/db';
 
 interface MemoryChunk {
   id?: number;
@@ -33,6 +34,8 @@ const ScoreboardPage: React.FC = () => {
     ltm: { size: 0, chunks: 0 } 
   });
   const [browserInfo, setBrowserInfo] = useState<string>('');
+  const [dbHealth, setDbHealth] = useState<any>(null);
+  const [isPersistent, setIsPersistent] = useState<boolean>(false);
   
   // Load STM chunks on mount
   useEffect(() => {
@@ -67,6 +70,11 @@ const ScoreboardPage: React.FC = () => {
         // Sort by score (descending)
         stmData.sort((a, b) => (b.score || 1) - (a.score || 1));
         setStmChunks(stmData);
+        
+        // Check database health
+        const health = await checkDatabaseHealth();
+        setDbHealth(health);
+        setIsPersistent(health.isPersistent);
       } catch (error) {
         console.error("Error loading STM data:", error);
       } finally {
@@ -109,6 +117,64 @@ const ScoreboardPage: React.FC = () => {
     } catch (error) {
       console.error("Error decaying LTM memories:", error);
       alert("Error decaying LTM memories. Check console.");
+    }
+  };
+  
+  const handleExportData = async () => {
+    try {
+      const data = await exportAllData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `memory-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      alert('Memory backup exported successfully!');
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Export failed. Check console for details.');
+    }
+  };
+  
+  const handleImportData = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      
+      if (window.confirm('This will replace all existing memories. Are you sure?')) {
+        const result = await importAllData(data);
+        alert(`Import successful! LTM: ${result.ltmImported}, STM: ${result.stmImported}`);
+        
+        // Refresh the page data
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Import failed:', error);
+      alert('Import failed. Please check the file format.');
+    }
+    
+    // Clear the input
+    event.target.value = '';
+  };
+  
+  const handleRequestPersistentStorage = async () => {
+    try {
+      const granted = await requestPersistentStorage();
+      if (granted) {
+        setIsPersistent(true);
+        alert('Persistent storage granted! Your memories should now survive browser restarts.');
+      } else {
+        alert('Persistent storage request denied by browser.');
+      }
+    } catch (error) {
+      console.error('Persistent storage request failed:', error);
+      alert('Failed to request persistent storage.');
     }
   };
   
@@ -175,6 +241,86 @@ const ScoreboardPage: React.FC = () => {
         </div>
         
         <div className="bg-red-50 rounded-lg border border-red-200 shadow-sm p-5 flex items-center">
+          <div className="bg-yellow-50 rounded-lg border border-yellow-200 shadow-sm p-5">
+            <div className="flex items-center mb-3">
+              <Shield size={24} className="text-yellow-500 mr-2" />
+              <h3 className="text-lg font-semibold text-yellow-800">Storage Persistence</h3>
+            </div>
+            <div className="space-y-2 text-sm">
+              <p className={`font-medium ${isPersistent ? 'text-green-700' : 'text-red-700'}`}>
+                Status: {isPersistent ? '✅ Persistent' : '❌ Not Persistent'}
+              </p>
+              {!isPersistent && (
+                <button
+                  onClick={handleRequestPersistentStorage}
+                  className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 font-medium rounded-lg px-3 py-1 text-sm"
+                >
+                  Request Persistent Storage
+                </button>
+              )}
+              <p className="text-yellow-700 text-xs">
+                Persistent storage prevents data loss during browser updates/restarts
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-blue-50 rounded-lg border border-blue-200 shadow-sm p-5">
+          <div className="flex items-center mb-3">
+            <Database size={24} className="text-blue-500 mr-2" />
+            <h3 className="text-lg font-semibold text-blue-800">Backup & Restore</h3>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={handleExportData}
+              className="bg-blue-100 text-blue-700 hover:bg-blue-200 font-medium rounded-lg px-3 py-2 flex items-center gap-2"
+            >
+              <Download size={16} />
+              Export Memories
+            </button>
+            
+            <label className="bg-green-100 text-green-700 hover:bg-green-200 font-medium rounded-lg px-3 py-2 flex items-center gap-2 cursor-pointer">
+              <Upload size={16} />
+              Import Memories
+              <input
+                type="file"
+                accept=".json"
+                onChange={handleImportData}
+                className="hidden"
+              />
+            </label>
+          </div>
+          <p className="text-blue-600 text-sm mt-2">
+            Export your memories as JSON backup or restore from a previous backup
+          </p>
+        </div>
+        
+        {dbHealth && (
+          <div className="bg-gray-50 rounded-lg border border-gray-200 shadow-sm p-5">
+            <div className="flex items-center mb-3">
+              <Info size={24} className="text-gray-500 mr-2" />
+              <h3 className="text-lg font-semibold text-gray-800">Database Health</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-gray-600">Status: <span className={dbHealth.healthy ? 'text-green-600' : 'text-red-600'}>{dbHealth.healthy ? 'Healthy' : 'Issues Detected'}</span></p>
+                <p className="text-gray-600">LTM Chunks: <span className="font-mono">{dbHealth.ltmCount}</span></p>
+                <p className="text-gray-600">STM Chunks: <span className="font-mono">{dbHealth.stmCount}</span></p>
+              </div>
+              {dbHealth.storageInfo && (
+                <div>
+                  <p className="text-gray-600">Storage Used: <span className="font-mono">{(dbHealth.storageInfo.usage / 1024 / 1024).toFixed(2)} MB</span></p>
+                  <p className="text-gray-600">Storage Quota: <span className="font-mono">{(dbHealth.storageInfo.quota / 1024 / 1024).toFixed(2)} MB</span></p>
+                  <p className="text-gray-600">Usage: <span className="font-mono">{dbHealth.storageInfo.percentage.toFixed(1)}%</span></p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="bg-red-50 rounded-lg border border-red-200 shadow-sm p-5 flex items-center">
           <AlertCircle size={36} className="text-red-500 mr-4" />
           <div>
             <h3 className="text-lg font-semibold text-red-800">Memory Management</h3>
@@ -186,6 +332,7 @@ const ScoreboardPage: React.FC = () => {
             </button>
           </div>
         </div>
+      </div>
       </div>
       
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 mb-6">
