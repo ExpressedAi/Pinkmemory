@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.15.0",
     "@radix-ui/react-toast": "^1.1.5",
     "framer-motion": "^11.0.8",
     "idb": "^8.0.0",
