@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { Brain } from 'lucide-react';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useMemory } from '@/contexts/MemoryContext';
-import { fetchEmbedding, fetchMeta, buildMetaVectorFromAI, cosine, normalize, streamResponse } from '@/services/api';
+import { fetchEmbedding, fetchMeta, buildMetaVectorFromAI, cosine, normalize, fetchChatCompletion } from '@/services/api';
 import { stm_getMemoryStore, ltm_getMemoryStore, stm_boostMemoryChunk, ltm_boostMemoryChunk, stm_decayMemoryStore, ltm_decayMemoryStore, stm_addChunk } from '@/services/memory';
 
 interface ChatMessage {
@@ -28,8 +28,6 @@ export default function ChatPage() {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [streamingContent, setStreamingContent] = useState('');
-  const [isStreaming, setIsStreaming] = useState(false);
   const [queryInfo, setQueryInfo] = useState<string | null>(null);
   const [stmContext, setStmContext] = useState<{chunks: ContextChunk[], meta: any} | null>(null);
   const [ltmContext, setLtmContext] = useState<{chunks: ContextChunk[], meta: any} | null>(null);
@@ -99,39 +97,31 @@ Generate a reflection that:
 
 Write your reflection:`;
 
-      let reflection = '';
-      await streamResponse(
+      const reflection = await fetchChatCompletion(
         settings.apiKeyA,
         [{ role: "user", content: reflectionPrompt }],
-        settings.modelA,
-        (chunk) => {
-          reflection += chunk;
-        },
-        async () => {
-          // Save reflection to STM
-          if (reflection && settings.apiKeyB) {
-            const embedding = await fetchEmbedding(settings.apiKeyB, reflection, settings.modelBEmbed);
-            const meta = await fetchMeta(settings.apiKeyB, reflection, settings.modelBMeta);
-            const metaVector = buildMetaVectorFromAI(meta);
-            
-            await stm_addChunk({
-              text: reflection,
-              embedding,
-              metaVector,
-              timestamp: Date.now(),
-              score: 2.0, // Give reflections a higher initial score
-              agentId: "agent-autonomous-reflection",
-              meta,
-              source: "Autonomous Reflection"
-            });
-            
-            console.log("Saved autonomous reflection to STM");
-          }
-        },
-        (error) => {
-          console.error("Error during autonomous reflection:", error);
-        }
+        settings.modelA
       );
+      
+      // Save reflection to STM
+      if (reflection && settings.apiKeyB) {
+        const embedding = await fetchEmbedding(settings.apiKeyB, reflection, settings.modelBEmbed);
+        const meta = await fetchMeta(settings.apiKeyB, reflection, settings.modelBMeta);
+        const metaVector = buildMetaVectorFromAI(meta);
+        
+        await stm_addChunk({
+          text: reflection,
+          embedding,
+          metaVector,
+          timestamp: Date.now(),
+          score: 2.0, // Give reflections a higher initial score
+          agentId: "agent-autonomous-reflection",
+          meta,
+          source: "Autonomous Reflection"
+        });
+        
+        console.log("Saved autonomous reflection to STM");
+      }
       
       // Update UI after reflection
       setAgentAStatus('Reflection completed');
@@ -166,7 +156,7 @@ Write your reflection:`;
     if (chatLogRef.current) {
       chatLogRef.current.scrollTop = chatLogRef.current.scrollHeight;
     }
-  }, [chatHistory, streamingContent]);
+  }, [chatHistory]);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,7 +172,6 @@ Write your reflection:`;
     setChatHistory(prev => [...prev, { role: 'user', content: userMessage }]);
     
     setIsLoading(true);
-    setStreamingContent('');
     setQueryInfo(`Processing query: "${userMessage}"`);
     setStmContext(null);
     setLtmContext(null);
@@ -306,34 +295,18 @@ Based only on the provided memories (STM & LTM), conversation history, and the u
         
         abortControllerRef.current = new AbortController();
         
-        await streamResponse(
+        const response = await fetchChatCompletion(
           settings.apiKeyA,
           [{ role: "user", content: agentPrompt }],
           settings.modelA,
-          // Start streaming
-          () => {
-            setIsStreaming(true);
-            setStreamingContent('');
-          },
-          // Handle each chunk
-          (chunk) => {
-            setStreamingContent(prev => prev + chunk);
-          },
-          // Complete streaming
-          async () => {
-            setAgentAStatus('Response completed');
-            setIsStreaming(false);
-            setChatHistory(prev => [...prev, { 
-              role: 'assistant', 
-              content: streamingContent 
-            }]);
-          },
-          (error) => {
-            console.error("Error generating response:", error);
-            setAgentAStatus(`Error: ${error.message}`);
-          },
           abortControllerRef.current.signal
         );
+        
+        setAgentAStatus('Response completed');
+        setChatHistory(prev => [...prev, { 
+          role: 'assistant', 
+          content: response 
+        }]);
       }
     } catch (error: any) {
       console.error("Error in chat process:", error);
@@ -366,15 +339,6 @@ Based only on the provided memories (STM & LTM), conversation history, and the u
             </div>
           ))}
           
-          {isStreaming && streamingContent && (
-            <div>
-              <div className="font-semibold text-gray-800">Agent A:</div>
-              <div className="prose-sm max-w-none mt-2">
-                <ReactMarkdown>{streamingContent}</ReactMarkdown>
-              </div>
-              <div className="w-2 h-5 inline-block border-r-2 border-purple-600 animate-blink"></div>
-            </div>
-          )}
         </div>
         
         <form onSubmit={handleSubmit} className="mt-auto">

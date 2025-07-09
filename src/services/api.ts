@@ -142,6 +142,48 @@ Return JSON only, without any markdown formatting or explanations.`.trim();
   }
 }
 
+// Fetch complete chat response from OpenAI (non-streaming)
+export async function fetchChatCompletion(
+  apiKey: string, 
+  messages: { role: string, content: string }[], 
+  model = AGENT_A_MODEL,
+  abortSignal?: AbortSignal
+): Promise<string> {
+  if (!apiKey) throw new Error(`API Key is missing for chat completion with model ${model}.`);
+  if (!messages || messages.length === 0) throw new Error("Cannot fetch chat completion for empty messages.");
+  
+  console.log(`Fetching chat completion with model: ${model}`);
+  
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${sanitizeApiKey(apiKey)}`
+    },
+    body: JSON.stringify({
+      model: model,
+      messages: messages,
+      temperature: 0.7,
+      stream: false
+    }),
+    signal: abortSignal
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Chat Completion API Error:", errorText);
+    throw new Error(`Chat completion failed (${model}): ${response.status} ${errorText}`);
+  }
+  
+  const data = await response.json();
+  if (!data.choices || data.choices.length === 0 || !data.choices[0].message) {
+    console.error("Invalid chat completion response structure:", data);
+    throw new Error(`Invalid chat completion response structure received from API (${model}).`);
+  }
+  
+  return data.choices[0].message.content || '';
+}
+
 // Stream response from OpenAI
 export async function streamResponse(
   apiKey: string, 
