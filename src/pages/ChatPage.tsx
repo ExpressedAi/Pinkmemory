@@ -5,7 +5,7 @@ import { useSettings } from '@/contexts/SettingsContext';
 import { useMemory } from '@/contexts/MemoryContext';
 import { useChatHistory } from '@/contexts/ChatHistoryContext';
 import { fetchEmbedding, fetchMeta, buildMetaVectorFromAI, cosine, normalize, streamResponse } from '@/services/api';
-import { stm_getMemoryStore, ltm_getMemoryStore, stm_boostMemoryChunk, ltm_boostMemoryChunk, stm_decayMemoryStore, ltm_decayMemoryStore, stm_addChunk } from '@/services/memory';
+import { stm_getMemoryStore, ltm_getMemoryStore, stm_boostMemoryChunk, ltm_boostMemoryChunk, stm_decayMemoryStore, ltm_decayMemoryStore, stm_addChunk, ltm_addChunk } from '@/services/memory';
 
 interface ContextChunk {
   id?: number;
@@ -113,6 +113,7 @@ Write your reflection:`;
             const meta = await fetchMeta(settings.apiKeyB, reflection, settings.modelBMeta);
             const metaVector = buildMetaVectorFromAI(meta);
             
+            // Save to STM
             await stm_addChunk({
               text: reflection,
               embedding,
@@ -124,14 +125,37 @@ Write your reflection:`;
               source: "Autonomous Reflection"
             });
             
+            // Also save to LTM for long-term preservation
+            if (settings.apiKeyC) {
+              try {
+                // Use Agent C's models for LTM storage
+                const ltmEmbedding = await fetchEmbedding(settings.apiKeyC, reflection, settings.modelCEmbed);
+                const ltmMeta = await fetchMeta(settings.apiKeyC, reflection, settings.modelCMeta);
+                const ltmMetaVector = buildMetaVectorFromAI(ltmMeta);
+                
+                await ltm_addChunk({
+                  text: reflection,
+                  embedding: ltmEmbedding,
+                  metaVector: ltmMetaVector,
+                  timestamp: Date.now(),
+                  score: 2.5, // Give LTM reflections an even higher score for persistence
+                  agentId: "agent-autonomous-reflection-ltm",
+                  meta: ltmMeta,
+                  source: "Autonomous Reflection (LTM)"
+                });
+                
+                console.log("Saved autonomous reflection to both STM and LTM");
+              } catch (ltmError) {
+                console.warn("Failed to save reflection to LTM, but STM save succeeded:", ltmError);
+              }
+            }
+            
             // Add reflection to chat history
             addChatMessage({
               role: 'reflection',
               content: reflection,
               timestamp: Date.now()
             });
-            
-            console.log("Saved autonomous reflection to STM");
           }
         },
         (error) => {
@@ -403,10 +427,10 @@ Based only on the provided memories (STM & LTM), conversation history, and the u
             <div key={index} className="mb-4">
               <div className={`font-semibold ${
                 message.role === 'user' 
-                  ? 'text-purple-600' 
+                  ? 'text-pink-600' 
                   : message.role === 'reflection'
-                  ? 'text-indigo-600'
-                  : 'text-gray-800'
+                  ? 'text-purple-600'
+                  : 'text-blue-600'
               }`}>
                 {message.role === 'user' 
                   ? 'You:' 
@@ -415,13 +439,17 @@ Based only on the provided memories (STM & LTM), conversation history, and the u
                   : 'Agent A:'}
               </div>
               <div className={`prose-sm max-w-none mt-2 ${
+                message.role === 'user'
+                  ? 'bg-pastel-pink/30 border-l-4 border-pastel-pink pl-4 py-2 rounded-r-lg'
+                  : message.role === 'assistant'
+                  ? 'bg-pastel-blue/30 border-l-4 border-pastel-blue pl-4 py-2 rounded-r-lg'
                 message.role === 'reflection' 
-                  ? 'bg-indigo-50 border-l-4 border-indigo-300 pl-4 py-2 rounded-r-lg' 
+                  ? 'bg-pastel-purple/30 border-l-4 border-pastel-purple pl-4 py-2 rounded-r-lg' 
                   : ''
               }`}>
                 <ReactMarkdown>{message.content}</ReactMarkdown>
                 {message.role === 'reflection' && message.timestamp && (
-                  <div className="text-xs text-indigo-500 mt-2 italic">
+                  <div className="text-xs text-purple-500 mt-2 italic">
                     Generated at {new Date(message.timestamp).toLocaleTimeString()}
                   </div>
                 )}
@@ -431,10 +459,10 @@ Based only on the provided memories (STM & LTM), conversation history, and the u
           
           {isStreaming && streamingContent && (
             <div className="mb-4">
-              <div className="font-semibold text-gray-800">Agent A:</div>
-              <div className="prose-sm max-w-none mt-2">
+              <div className="font-semibold text-blue-600">Agent A:</div>
+              <div className="prose-sm max-w-none mt-2 bg-pastel-blue/30 border-l-4 border-pastel-blue pl-4 py-2 rounded-r-lg">
                 <ReactMarkdown>{streamingContent}</ReactMarkdown>
-                <span className="inline-block w-2 h-5 border-r-2 border-purple-600 animate-pulse ml-1"></span>
+                <span className="inline-block w-2 h-5 border-r-2 border-blue-600 animate-pulse ml-1"></span>
               </div>
             </div>
           )}
