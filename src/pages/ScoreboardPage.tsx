@@ -240,8 +240,7 @@ const ScoreboardPage: React.FC = () => {
           </div>
         </div>
         
-        <div className="bg-red-50 rounded-lg border border-red-200 shadow-sm p-5 flex items-center">
-          <div className="bg-yellow-50 rounded-lg border border-yellow-200 shadow-sm p-5">
+        <div className="bg-yellow-50 rounded-lg border border-yellow-200 shadow-sm p-5">
             <div className="flex items-center mb-3">
               <Shield size={24} className="text-yellow-500 mr-2" />
               <h3 className="text-lg font-semibold text-yellow-800">Storage Persistence</h3>
@@ -263,9 +262,8 @@ const ScoreboardPage: React.FC = () => {
               </p>
             </div>
           </div>
-        </div>
-        
-        <div className="bg-blue-50 rounded-lg border border-blue-200 shadow-sm p-5">
+          
+          <div className="bg-blue-50 rounded-lg border border-blue-200 shadow-sm p-5">
           <div className="flex items-center mb-3">
             <Database size={24} className="text-blue-500 mr-2" />
             <h3 className="text-lg font-semibold text-blue-800">Backup & Restore</h3>
@@ -317,9 +315,7 @@ const ScoreboardPage: React.FC = () => {
             </div>
           </div>
         )}
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        
         <div className="bg-red-50 rounded-lg border border-red-200 shadow-sm p-5 flex items-center">
           <AlertCircle size={36} className="text-red-500 mr-4" />
           <div>
@@ -332,7 +328,6 @@ const ScoreboardPage: React.FC = () => {
             </button>
           </div>
         </div>
-      </div>
       </div>
       
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 mb-6">
