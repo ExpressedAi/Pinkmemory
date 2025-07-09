@@ -340,6 +340,8 @@ Write your reflection:`;
           hasConversationHistory: chatHistory.length > 0
         });
         
+        let accumulatedContent = '';
+        
         const agentPrompt = `${systemPrefix}You are Agent A (Sylvia), a highly context-aware AI responder. Your personality is thoughtful and insightful.
 User query: "${userMessage}"
 ${conversationContext ? conversationContext + "\n" : ""}Relevant context retrieved by other agents:
@@ -358,20 +360,30 @@ Based only on the provided memories (STM & LTM), conversation history, and the u
             // onStart
             setIsStreaming(true);
             setStreamingContent('');
+            accumulatedContent = '';
             setAgentAStatus('💭 Agent A: Generating response...');
           },
           (chunk) => {
             // onChunk
+            accumulatedContent += chunk;
             setStreamingContent(prev => prev + chunk);
           },
           () => {
             // onComplete
             setAgentAStatus('✅ Agent A: Response completed');
-            setIsStreaming(false);
+            
+            // Add accumulated content to chat history
             setChatHistory(prev => [...prev, { 
               role: 'assistant', 
-              content: streamingContent 
+              content: accumulatedContent 
             }]);
+            
+            // Clear streaming state after a brief delay to ensure smooth transition
+            setTimeout(() => {
+              setIsStreaming(false);
+              setStreamingContent('');
+            }, 50);
+            
             setQueryInfo(null);
           },
           (error) => {
@@ -379,6 +391,7 @@ Based only on the provided memories (STM & LTM), conversation history, and the u
             console.error("Error generating response:", error);
             setAgentAStatus(`❌ Agent A: Error - ${error.message}`);
             setIsStreaming(false);
+            setStreamingContent('');
           },
           abortControllerRef.current.signal
         );
