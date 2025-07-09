@@ -124,6 +124,13 @@ Write your reflection:`;
               source: "Autonomous Reflection"
             });
             
+            // Add reflection to chat history
+            addChatMessage({
+              role: 'reflection',
+              content: reflection,
+              timestamp: Date.now()
+            });
+            
             console.log("Saved autonomous reflection to STM");
           }
         },
@@ -394,11 +401,30 @@ Based only on the provided memories (STM & LTM), conversation history, and the u
         >
           {chatHistory.map((message, index) => (
             <div key={index} className="mb-4">
-              <div className={`font-semibold ${message.role === 'user' ? 'text-purple-600' : 'text-gray-800'}`}>
-                {message.role === 'user' ? 'You:' : 'Agent A:'}
+              <div className={`font-semibold ${
+                message.role === 'user' 
+                  ? 'text-purple-600' 
+                  : message.role === 'reflection'
+                  ? 'text-indigo-600'
+                  : 'text-gray-800'
+              }`}>
+                {message.role === 'user' 
+                  ? 'You:' 
+                  : message.role === 'reflection'
+                  ? '🧠 Autonomous Reflection:'
+                  : 'Agent A:'}
               </div>
-              <div className="prose-sm max-w-none mt-2">
+              <div className={`prose-sm max-w-none mt-2 ${
+                message.role === 'reflection' 
+                  ? 'bg-indigo-50 border-l-4 border-indigo-300 pl-4 py-2 rounded-r-lg' 
+                  : ''
+              }`}>
                 <ReactMarkdown>{message.content}</ReactMarkdown>
+                {message.role === 'reflection' && message.timestamp && (
+                  <div className="text-xs text-indigo-500 mt-2 italic">
+                    Generated at {new Date(message.timestamp).toLocaleTimeString()}
+                  </div>
+                )}
               </div>
             </div>
           ))}
